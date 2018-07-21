@@ -18,6 +18,9 @@
   background: white;
   text-align: center;
 }
+.ab-swipe-line:hover {
+  cursor: grabbing;
+}
 .ab-swipe-dragger:hover {
   transform: scale(1.2);
   cursor: grabbing;
@@ -43,6 +46,7 @@
   top: 5px;
   font-size: 14px;
 }
+
 .ab-swipe-line .ab-swipe-span {
   position: absolute;
   top: 50%;

@@ -22,24 +22,25 @@ export function compareModel(models, config) {
     self.events.trigger('change');
   };
   self.save = function(state) {
-    if (self.active !== state.c) {
-      state.c = self.active;
-    }
-    if (self.isCompareA !== state.ca) {
-      state.ca = self.isCompareA;
-    }
-    if (self.mode !== state.cm) {
-      state.cm = self.mode;
+    if (!self.active) {
+      if (state.ca) delete state.ca;
+      if (state.cm) delete state.ca;
+    } else {
+      if (self.isCompareA !== state.ca) {
+        state.ca = self.isCompareA;
+      }
+      if (self.mode !== state.cm) {
+        state.cm = self.mode;
+      }
     }
   };
   self.load = function(state) {
-    if (state.c) {
-      self.active = state.c === 'true';
-    }
     if (state.ca) {
+      self.active = true;
       self.isCompareA = state.ca === 'true';
     }
     if (state.cm) {
+      self.active = true;
       self.mode = state.cm;
     }
   };

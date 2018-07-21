@@ -134,7 +134,6 @@ export function timelineInput(models, config, ui) {
       document.getElementById(dateSelectorStr)
     );
     model.events.on('select', date => {
-      console.log('select');
       self.reactComponent.setState({ date: date });
     });
 

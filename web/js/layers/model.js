@@ -8,11 +8,10 @@ import lodashCloneDeep from 'lodash/cloneDeep';
 import { getActiveDateString } from '../compare/util';
 import util from '../util/util';
 var loaded = false;
-self.activeLayers = 'active';
 
 export function layersModel(models, config) {
   var self = {};
-
+  self.activeLayers = 'active';
   var split = { active: 0, activeB: 0 };
   self.events = util.events();
 
@@ -95,11 +94,11 @@ export function layersModel(models, config) {
     }
   };
 
-  self.available = function(id, date, activeLayers) {
-    activeLayers = activeLayers || self.active;
+  self.available = function(id, date, activeLayers, activeLayersString) {
+    activeLayers = activeLayers || self[activeLayersString] || self.active;
     var activeDateString = getActiveDateString(
       models.compare.abIsActive,
-      models.compareisCompareA
+      models.compare.isCompareA
     );
     date = date || models.date[activeDateString] || models.date.selected;
     var range = self.dateRange(
@@ -108,6 +107,7 @@ export function layersModel(models, config) {
       },
       activeLayers
     );
+
     if (range) {
       if (date < range.start || date > range.end) {
         return false;
@@ -247,7 +247,16 @@ export function layersModel(models, config) {
     self.events.trigger('update');
     self.events.trigger('change');
   };
-
+  self.replaceSubGroup = function(newSubGroup, activeLayerString, subGroup) {
+    activeLayerString = activeLayerString || 'active';
+    var layers = self.get({ group: 'all' }, self[activeLayerString]);
+    var baseLayers =
+      subGroup === 'baselayers' ? newSubGroup : layers.baselayers;
+    var overlays = subGroup === 'overlays' ? newSubGroup : layers.overlays;
+    self[activeLayerString] = baseLayers.concat(overlays);
+    self.events.trigger('update');
+    self.events.trigger('change');
+  };
   self.clear = function(projId, activeLayerString) {
     activeLayerString = activeLayerString || 'active';
     if (!self[activeLayerString]) self[activeLayerString] = [];
@@ -329,6 +338,7 @@ export function layersModel(models, config) {
     var visibility = !self[activeLayersString][index].visible;
     self[activeLayersString][index].visible = visibility;
     self.events.trigger('visibility', id, visibility, activeLayersString);
+    self.events.trigger('change');
   };
   self.setOpacity = function(id, opacity, activeLayersString) {
     activeLayersString = activeLayersString || 'active';
@@ -337,7 +347,7 @@ export function layersModel(models, config) {
     });
     if (def.opacity !== opacity) {
       def.opacity = opacity;
-      self.events.trigger('opacity', def, opacity);
+      self.events.trigger('opacity', def, opacity, activeLayersString);
       self.events.trigger('change');
     }
   };
@@ -385,23 +395,28 @@ export function layersModel(models, config) {
   };
 
   self.save = function(state) {
-    var layers;
     state.l = state.l || [];
-    if (config.features.compare) {
-      state.l1 = state.l1 || [];
-      state.l2 = state.l2 || [];
-      layers = [
-        {
-          state: 'l',
-          str: 'active'
-        },
-        {
-          state: 'l1',
-          str: 'activeB'
-        }
-      ];
-    } else {
-      layers = [{ state: 'l', active: 'active' }];
+    var layers = [{ state: 'l', str: 'active' }];
+    if (models.compare) {
+      if (models.compare.active) {
+        state.l1 = state.l1 || [];
+        layers = [
+          {
+            state: 'l',
+            str: 'active'
+          },
+          {
+            state: 'l1',
+            str: 'activeB'
+          }
+        ];
+      }
+      if (!models.compare.active && !models.compare.isCompareA) {
+        layers = [{ state: 'l', str: 'activeB' }];
+      }
+      if (!models.compare.active) {
+        if (state.l1) delete state.l1;
+      }
     }
     lodashEach(layers, obj => {
       lodashEach(self.get({}, self[obj.str]), function(def) {

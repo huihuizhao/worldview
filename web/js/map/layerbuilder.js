@@ -10,12 +10,12 @@ import lodashMerge from 'lodash/merge';
 import lodashEach from 'lodash/each';
 import { lookupFactory } from '../ol/lookupimagetile';
 
-export function mapLayerBuilder(models, config, cache, Parent) {
+export function mapLayerBuilder(models, config, cache, mapUi) {
   var self = {};
-  self.init = function (Parent) {
+  self.init = function(Parent) {
     self.extentLayers = [];
-    Parent.events.on('selecting', hideWrap);
-    Parent.events.on('selectiondone', showWrap);
+    mapUi.events.on('selecting', hideWrap);
+    mapUi.events.on('selectiondone', showWrap);
   };
   /*
    * Create a new OpenLayers Layer
@@ -30,22 +30,25 @@ export function mapLayerBuilder(models, config, cache, Parent) {
    *
    * @returns {object} OpenLayers layer
    */
-  self.createLayer = function (def, options) {
-    var date, key, proj, layer, layerNext, layerPrior, attributes;
+  self.createLayer = function(def, options) {
+    var date, key, group, proj, layer, layerNext, layerPrior, attributes;
 
     options = options || {};
+    group = options.group || null;
     date = self.closestDate(def, options);
     key = self.layerKey(def, options, date);
     proj = models.proj.selected;
     layer = cache.getItem(key);
-    if (!layer) { // layer is not in the cache
+    if (!layer) {
+      // layer is not in the cache
       if (!date) date = options.date || models.date.selected;
       attributes = {
         id: def.id,
         key: key,
         date: date,
         proj: proj.id,
-        def: def
+        def: def,
+        group: group
       };
       def = lodashCloneDeep(def);
       lodashMerge(def, def.projections[proj.id]);
@@ -95,10 +98,12 @@ export function mapLayerBuilder(models, config, cache, Parent) {
    * @param  {object} options Layer options
    * @return {object}         Closest date
    */
-  self.closestDate = function (def, options) {
+  self.closestDate = function(def, options) {
     var date;
     var animRange;
-    if (models.anim) { animRange = models.anim.rangeState; }
+    if (models.anim) {
+      animRange = models.anim.rangeState;
+    }
     var dateArray = def.availableDates || [];
     if (options.date) {
       date = options.date;
@@ -106,10 +111,13 @@ export function mapLayerBuilder(models, config, cache, Parent) {
       date = models.date.selected;
     }
     // Perform extensive checks before finding closest date
-    if (!options.precache && (animRange && animRange.playing === false) &&
-        ((def.period === 'daily' && (models.date.selectedZoom > 3)) ||
-        (def.period === 'monthly' && (models.date.selectedZoom >= 2)) ||
-        (def.period === 'yearly' && (models.date.selectedZoom >= 1)))) {
+    if (
+      !options.precache &&
+      (animRange && animRange.playing === false) &&
+      ((def.period === 'daily' && models.date.selectedZoom > 3) ||
+        (def.period === 'monthly' && models.date.selectedZoom >= 2) ||
+        (def.period === 'yearly' && models.date.selectedZoom >= 1))
+    ) {
       date = util.prevDateInDateRange(def, date, dateArray);
 
       // Is current "rounded" previous date not in array of availableDates
@@ -134,7 +142,7 @@ export function mapLayerBuilder(models, config, cache, Parent) {
    *
    * @returns {object} layer key Object
    */
-  self.layerKey = function (def, options) {
+  self.layerKey = function(def, options) {
     var date;
     var layerId = def.id;
     var projId = models.proj.selected.id;
@@ -165,9 +173,8 @@ export function mapLayerBuilder(models, config, cache, Parent) {
    *
    * @returns {object} OpenLayers WMTS layer
    */
-  var createLayerWMTS = function (def, options, day) {
-    var proj, source, matrixSet, matrixIds, extra,
-      date, extent, start;
+  var createLayerWMTS = function(def, options, day) {
+    var proj, source, matrixSet, matrixIds, extra, date, extent, start;
     proj = models.proj.selected;
     source = config.sources[def.source];
     extent = proj.maxExtent;
@@ -181,7 +188,7 @@ export function mapLayerBuilder(models, config, cache, Parent) {
     }
     if (typeof def.matrixIds === 'undefined') {
       matrixIds = [];
-      lodashEach(matrixSet.resolutions, function (resolution, index) {
+      lodashEach(matrixSet.resolutions, function(resolution, index) {
         matrixIds.push(index);
       });
     } else {
@@ -223,8 +230,8 @@ export function mapLayerBuilder(models, config, cache, Parent) {
       wrapX: false,
       style: typeof def.style === 'undefined' ? 'default' : def.style
     };
-    if (models.palettes.isActive(def.id)) {
-      var lookup = models.palettes.getLookup(def.id);
+    if (models.palettes.isActive(def.id, options.group)) {
+      var lookup = models.palettes.getLookup(def.id, options.group);
       sourceOptions.tileClass = lookupFactory(lookup, sourceOptions);
     }
     var layer = new OlLayerTile({
@@ -248,20 +255,32 @@ export function mapLayerBuilder(models, config, cache, Parent) {
    *
    * @returns {object} OpenLayers WMS layer
    */
-  var createLayerWMS = function (def, options, day) {
-    var proj, source, extra, transparent,
-      date, extent, start, res, parameters;
+  var createLayerWMS = function(def, options, day) {
+    var proj, source, extra, transparent, date, extent, start, res, parameters;
     proj = models.proj.selected;
     source = config.sources[def.source];
     extent = proj.maxExtent;
     start = [proj.maxExtent[0], proj.maxExtent[3]];
     res = proj.resolutions;
-    if (!source) { throw new Error(def.id + ': Invalid source: ' + def.source); }
+    if (!source) {
+      throw new Error(def.id + ': Invalid source: ' + def.source);
+    }
 
-    transparent = (def.format === 'image/png');
+    transparent = def.format === 'image/png';
     if (proj.id === 'geographic') {
-      res = [0.28125, 0.140625, 0.0703125, 0.03515625, 0.017578125, 0.0087890625, 0.00439453125,
-        0.002197265625, 0.0010986328125, 0.00054931640625, 0.00027465820313];
+      res = [
+        0.28125,
+        0.140625,
+        0.0703125,
+        0.03515625,
+        0.017578125,
+        0.0087890625,
+        0.00439453125,
+        0.002197265625,
+        0.0010986328125,
+        0.00054931640625,
+        0.00027465820313
+      ];
     }
     if (day) {
       if (day === 1) {
@@ -278,7 +297,9 @@ export function mapLayerBuilder(models, config, cache, Parent) {
       TRANSPARENT: transparent,
       VERSION: '1.1.1'
     };
-    if (def.styles) { parameters.STYLES = def.styles; }
+    if (def.styles) {
+      parameters.STYLES = def.styles;
+    }
 
     extra = '';
 
@@ -302,8 +323,8 @@ export function mapLayerBuilder(models, config, cache, Parent) {
       })
     };
 
-    if (models.palettes.isActive(def.id)) {
-      var lookup = models.palettes.getLookup(def.id);
+    if (models.palettes.isActive(def.id, options.group)) {
+      var lookup = models.palettes.getLookup(def.id, options.group);
       sourceOptions.tileClass = lookupFactory(lookup, sourceOptions);
     }
     var layer = new OlLayerTile({
@@ -313,7 +334,7 @@ export function mapLayerBuilder(models, config, cache, Parent) {
     });
     return layer;
   };
-  var hideWrap = function () {
+  var hideWrap = function() {
     var layer;
     var key;
     var layers;
@@ -331,7 +352,7 @@ export function mapLayerBuilder(models, config, cache, Parent) {
       }
     }
   };
-  var showWrap = function () {
+  var showWrap = function() {
     var layer;
     var layers;
     var key;
@@ -348,6 +369,6 @@ export function mapLayerBuilder(models, config, cache, Parent) {
       }
     }
   };
-  self.init(Parent);
+  self.init(mapUi);
   return self;
-};
+}

@@ -46,7 +46,7 @@ export function mapui(models, config) {
   var precache = mapPrecacheTile(models, config, cache, self);
   var compare = mapCompare(models, config);
 
-  var dataRunner = (self.runningdata = new MapRunningData(models));
+  var dataRunner = (self.runningdata = new MapRunningData(models, compare));
 
   self.mapIsbeingDragged = false;
   self.mapIsbeingZoomed = false;
@@ -228,46 +228,6 @@ export function mapui(models, config) {
     removeGraticule();
     cache.clear();
   };
-  // var clearFirstLayerGroup = function(map) {
-  //   var layerGroup = map
-  //     .getLayers()
-  //     .getArray()
-  //     .slice(0)[0];
-  //   map.removeLayer(layerGroup);
-  // }
-  // var reloadCompareLayer = function(map) {
-  //   map = map || self.selected;
-  //   var activeLayerString = getActiveLayerGroupString(true, models.compare.isCompareA);
-  //   var layerGroup = map.getLayers()[0];
-  //   var activeLayers = models.layers.get({}, activeLayerString);
-  //   clearFirstLayerGroup();
-  //   if (layerGroupStr === 'active') {
-  //     if (compare.active) {
-  //       compare.destroy();
-  //     }
-  //     let defs = models.layers.get(
-  //       {
-  //         reverse: true
-  //       },
-  //       activeLayers
-  //     );
-  //     lodashEach(defs, function(def) {
-  //       if (isGraticule(def)) {
-  //         addGraticule();
-  //       } else {
-  //         self.selected.addLayer(createLayer(def));
-  //       }
-  //     });
-  //   } else {
-  //     let stateArray = [['activeA', 'selectedA'], ['activeB', 'selectedB']];
-  //     if (!compareModel.isCompareA) stateArray.reverse();
-  //     lodashEach(stateArray, arr => {
-  //       self.selected.addLayer(getCompareLayerGroup(arr));
-  //     });
-  //     compare.create(map, compareModel.mode);
-  //   }
-  //   updateLayerVisibilities();
-  // }
   /*
    * get layers from models obj
    * and add each layer to the map
@@ -279,7 +239,7 @@ export function mapui(models, config) {
    *
    * @returns {void}
    */
-  var reloadLayers = function(map, isLayerGroup) {
+  var reloadLayers = function(map) {
     map = map || self.selected;
     var compareModel = models.compare;
     var layerGroupStr = getActiveLayerGroupString(
@@ -322,7 +282,8 @@ export function mapui(models, config) {
         .get({ reverse: true }, models.layers[arr[0]])
         .map(def => {
           return createLayer(def, {
-            date: models.date[arr[1]]
+            date: models.date[arr[1]],
+            group: arr[0]
           });
         }),
       group: arr[0]
@@ -392,8 +353,8 @@ export function mapui(models, config) {
    *
    * @returns {void}
    */
-  var updateOpacity = function(def, value) {
-    var layer = findLayer(def);
+  var updateOpacity = function(def, value, activeLayersString) {
+    var layer = findLayer(def, activeLayersString);
     layer.setOpacity(value);
     updateLayerVisibilities();
   };
@@ -484,7 +445,6 @@ export function mapui(models, config) {
       );
     }
     var layers = models.layers.get({}, models.layers[layerGroupString]);
-    console.log(layers);
     lodashEach(layers, function(def) {
       if (!['subdaily', 'daily', 'monthly', 'yearly'].includes(def.period)) {
         return;
@@ -781,6 +741,7 @@ export function mapui(models, config) {
       switch (e.key) {
         case 'resolution':
           self.mapIsbeingZoomed = true;
+          self.events.trigger('zooming');
           break;
       }
     });
@@ -988,7 +949,7 @@ export function mapui(models, config) {
       var coords;
       var pixels;
       var outside;
-
+      if (compare && compare.dragging) return;
       // if mobile return
       if (util.browser.small) {
         return;

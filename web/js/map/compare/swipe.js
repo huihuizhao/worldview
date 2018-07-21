@@ -5,14 +5,20 @@ var line = null;
 var bottomLayers = [];
 var topLayers = [];
 var map;
+var events;
 export class Swipe {
-  constructor(olMap) {
+  constructor(olMap, isAactive, compareEvents) {
     map = olMap;
+    events = compareEvents;
     this.create();
   }
   create() {
     line = addLineOverlay(map);
     this.update();
+  }
+
+  getSwipeOffset() {
+    return swipeOffset;
   }
   update() {
     var mapLayers = map.getLayers().getArray();
@@ -49,22 +55,26 @@ var addLineOverlay = function(map) {
   swipeOffset = swipeOffset || mapCase.offsetWidth / 2;
   lineCaseEl.style.transform = 'translateX( ' + swipeOffset + 'px)';
 
-  draggerEl.addEventListener('mousedown', evt => {
-    evt.preventDefault();
-    evt.stopPropagation();
-    function move(evt) {
+  [lineCaseEl, draggerEl].forEach(el => {
+    el.addEventListener('mousedown', evt => {
+      events.trigger('mousedown');
       evt.preventDefault();
       evt.stopPropagation();
-      swipeOffset += evt.movementX;
-      lineCaseEl.style.transform = 'translateX( ' + swipeOffset + 'px)';
-      map.render();
-    }
-    function end(evt) {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', end);
-    }
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', end);
+      function move(evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        swipeOffset += evt.movementX;
+        lineCaseEl.style.transform = 'translateX( ' + swipeOffset + 'px)';
+        map.render();
+      }
+      function end(evt) {
+        events.trigger('mouseup');
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', end);
+      }
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+    });
   });
   return lineCaseEl;
 };

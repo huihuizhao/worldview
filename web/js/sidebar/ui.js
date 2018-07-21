@@ -1,0 +1,326 @@
+import $ from 'jquery';
+import 'jquery-ui/dialog';
+import lodashFind from 'lodash/find';
+import lodashDebounce from 'lodash/debounce';
+import util from '../util/util';
+import { Sidebar } from 'worldview-components';
+import React from 'react';
+import ReactDOM from 'react-dom';
+import { getCompareObjects, getActiveLayerGroupString } from '../compare/util';
+import { getCheckerboard } from '../palettes/util';
+import { layersOptions } from '../layers/options';
+import { layersInfo } from '../layers/info';
+import palettes from '../palettes/palettes';
+import { getZotsForActiveLayers } from '../layers/util';
+import { timelineDataHightlight } from '../date/util';
+import wvui from '../ui/ui';
+
+export function sidebarUi(models, config, ui) {
+  var isCollapsed = false;
+  var activeTab = 'layers';
+  var isCompareMode = false;
+  var self = {};
+  var model = models.layers;
+  var compareObj = {};
+  var isCompareA = true;
+  var compareModeType = 'swipe';
+
+  self.events = util.events();
+
+  var init = function() {
+    self.reactComponent = ReactDOM.render(
+      React.createElement(Sidebar, getInitialProps()),
+      document.getElementById('wv-sidebar')
+    );
+    var debounceLayerUpdates = lodashDebounce(updateLayers, 100);
+    var debounceUpdateData = lodashDebounce(updateData, 100);
+    var debounceUpdateEventsList = lodashDebounce(updateEventsList, 100);
+    var debounceLayerAdd = lodashDebounce(layer => {
+      updateLayers();
+      updateState('zotsObject', getZotsForActiveLayers(config, models, ui));
+    }, 100);
+
+    // Set Event Listeners
+    models.data.events
+      .on('activate', () => onTabClick('download'))
+      .on('productSelect', onProductSelect)
+      .on('layerUpdate', debounceUpdateData)
+      .on('granuleSelect', debounceUpdateData)
+      .on('granuleUnselect', debounceUpdateData);
+    models.layers.events
+      .on('add', debounceLayerAdd)
+      .on('remove', debounceLayerUpdates)
+      .on('update', debounceLayerUpdates);
+
+    models.palettes.events
+      .on('set-custom', debounceLayerUpdates)
+      .on('clear-custom', debounceLayerUpdates)
+      .on('range', debounceLayerUpdates)
+      .on('update', debounceLayerUpdates);
+    models.naturalEvents.events
+      .on('activate', () => onTabClick('events'))
+      .on('list-change', debounceUpdateEventsList)
+      .on('selected-event', selected => {
+        self.reactComponent.setState({ selectedEvent: selected });
+      })
+      .on('hasData', () => {
+        self.reactComponent.setState({
+          eventsData: models.naturalEvents.data,
+          selectEvent: ui.naturalEvents.selectEvent,
+          deselectEvent: ui.naturalEvents.deselectEvent,
+          filterEventList: ui.naturalEvents.filterEventList
+        });
+      });
+    models.date.events.on('select', debounceLayerUpdates);
+    models.proj.events.on('select', debounceLayerUpdates);
+    models.map.events.on('data-running', runningLayers => {
+      self.reactComponent.setState({ runningLayers: runningLayers });
+    });
+    $(window).resize(resize);
+    ui.map.events.on(
+      'zooming',
+      lodashDebounce(() => {
+        updateState('zotsObject', getZotsForActiveLayers(config, models, ui));
+      }, 300)
+    );
+  };
+
+  var getInitialProps = function() {
+    var compareModel;
+    activeTab = models.naturalEvents.active
+      ? 'events'
+      : models.data.active
+        ? 'download'
+        : 'layers';
+    if (config.features.compare) {
+      compareModel = models.compare;
+      if (models.compare.active) {
+        isCompareA = compareModel.isCompareA;
+        isCompareMode = compareModel.active;
+        compareObj = getCompareObjects(models);
+        compareModeType = compareModel.mode;
+      }
+    }
+    return {
+      activeTab: activeTab,
+      isCompareMode: isCompareMode,
+      isCollapsed: isCollapsed,
+      layers: model.get({ group: 'all' }),
+      onTabClick: onTabClick,
+      toggleSidebar: toggleSidebar,
+      toggleLayerVisibility: toggleLayerVisibility,
+      tabTypes: getActiveTabs(),
+      getNames: model.getTitles,
+      firstDateObject: compareObj.a,
+      secondDateObject: compareObj.b,
+      getAvailability: getAvailability,
+      toggleComparisonObject: toggleComparisonObject,
+      toggleMode: toggleComparisonMode,
+      isCompareA: isCompareA,
+      updateLayer: updateLayer,
+      addLayers: onAddLayerCLick,
+      comparisonType: compareModeType,
+      changeCompareMode: compareModel.setMode,
+      checkerBoardPattern: getCheckerboard(),
+      palettePromise: palettePromise,
+      getLegend: models.palettes.getLegends,
+      replaceSubGroup: model.replaceSubGroup,
+      runningLayers: null,
+      selectedDataProduct: models.data.selectedProduct,
+      isMobile: util.browser.small,
+      localStorage: util.browser.localStorage,
+      zotsObject: getZotsForActiveLayers(config, models, ui),
+      eventsData: { sources: [], events: [] },
+      visibleEvents: { all: true },
+      filterEventList: null,
+      selectEvent: null,
+      deselectEvent: null,
+      selectedEvent: models.naturalEvents.selected || {},
+      getDataSelectionCounts: models.data.getSelectionCounts,
+      selectDataProduct: models.data.selectProduct,
+      showListAllButton: true,
+      getDataSelectionSize: models.data.getSelectionSize,
+      onGetData: null,
+      showDataUnavailableReason: null
+    };
+  };
+  var updateEventsList = function(visibleEvents, showListAll) {
+    self.reactComponent.setState({
+      visibleEvents: visibleEvents,
+      showListAllButton: showListAll
+    });
+  };
+  var updateData = function() {
+    self.reactComponent.setState({
+      dataDownloadObject: models.data.groupByProducts(),
+      onGetData: self.showDownloadList,
+      showDataUnavailableReason: self.showUnavailableReason
+    });
+  };
+  var updateLayers = function() {
+    if (models.compare.active) {
+      updateState('layerObjects');
+      updateState('zotsObject', getZotsForActiveLayers(config, models, ui));
+    } else {
+      updateState('layers');
+      updateState('zotsObject', getZotsForActiveLayers(config, models, ui));
+    }
+  };
+  var onProductSelect = function(product) {
+    self.reactComponent.setState({ selectedDataProduct: product });
+  };
+  var getAvailability = function(id, date, groupStr) {
+    return model.available(id, date, model[groupStr]);
+  };
+  var resize = function() {
+    var state = self.reactComponent.state;
+    var isMobile = state.isMobile;
+    if (!isMobile && util.browser.small) {
+      if (models.compare.active) toggleComparisonMode();
+      self.reactComponent.setState({
+        isMobile: true,
+        isCollapsed: true
+      });
+    } else if (isMobile && !util.browser.small) {
+      self.reactComponent.setState({
+        isMobile: false,
+        isCollapsed: state.isCollapsedRequested
+      });
+    }
+    self.reactComponent.setState({ windowHeight: window.innerHeight });
+  };
+  var toggleComparisonObject = function() {
+    isCompareA = !isCompareA;
+    models.compare.toggleState();
+    updateState('isCompareA');
+  };
+  var onAddLayerCLick = function() {
+    wvui.closeDialog();
+    $('#layer-modal').dialog('open');
+  };
+
+  // Need to rethink what is going on here
+  var toggleComparisonMode = function() {
+    isCompareMode = !isCompareMode;
+    if (!models.layers.activeB || !models.date.selectedB) {
+      if (!models.date.selectedB) {
+        models.date.initCompare();
+      }
+      if (!models.layers.activeB) {
+        models.layers.initCompare();
+      }
+      updateState('layerObjects');
+    }
+
+    models.compare.toggle();
+    updateState('isCompareMode');
+    updateState('layerObjects');
+    updateState('layers');
+  };
+  var palettePromise = function(layerId, paletteId) {
+    return new Promise((resolve, reject) => {
+      if (config.palettes.rendered[paletteId]) {
+        resolve();
+      } else {
+        palettes.loadRendered(config, layerId).done(function(result) {
+          resolve(result);
+        });
+      }
+    });
+  };
+  var getActiveTabs = function() {
+    const features = config.features;
+    return {
+      download: features.dataDownload,
+      layers: true,
+      events: features.naturalEvents != null
+    };
+  };
+  var updateState = function(type, value) {
+    switch (type) {
+      case 'isCollapsed':
+        return self.reactComponent.setState({ isCollapsed: isCollapsed });
+      case 'activeTab':
+        return self.reactComponent.setState({ activeTab: activeTab });
+      case 'layers':
+        let layerString = getActiveLayerGroupString(isCompareMode, isCompareA);
+        console.log(layerString);
+        console.log(
+          models.layers.get({ group: 'all' }, models.layers[layerString])
+        );
+        return self.reactComponent.setState({
+          layers: models.layers.get(
+            { group: 'all' },
+            models.layers[layerString]
+          )
+        });
+      case 'isCompareMode':
+        return self.reactComponent.setState({ isCompareMode: isCompareMode });
+      case 'isCompareA': {
+        return self.reactComponent.setState({ isCompareA: isCompareA });
+      }
+      case 'zotsObject':
+        return self.reactComponent.setState({ zotsObject: value });
+      case 'layerObjects':
+        compareObj = getCompareObjects(models);
+        return self.reactComponent.setState({
+          firstDateObject: compareObj.a,
+          secondDateObject: compareObj.b
+        });
+    }
+  };
+  var toggleSidebar = function() {
+    isCollapsed = !isCollapsed;
+    updateState('isCollapsed');
+  };
+  var onTabClick = function(tab) {
+    if (activeTab === tab) return;
+    activeTab = tab;
+    self.events.trigger('selectTab', tab);
+    updateState('activeTab');
+  };
+  var updateLayer = function(layerId, typeOfUpdate, value) {
+    var layer;
+    var layerGroupString = getActiveLayerGroupString(isCompareMode, isCompareA);
+    switch (typeOfUpdate) {
+      case 'remove':
+        models.layers.remove(layerId, layerGroupString);
+        break;
+      case 'add':
+        models.layers.add(layerId, {}, layerGroupString);
+        break;
+      case 'visibility':
+        models.layers.toggleVisibility(layerId, layerGroupString);
+        updateState(removeLayerState(isCompareMode));
+        break;
+      case 'info':
+        layer = lodashFind(models.layers[layerGroupString], { id: layerId });
+        layersInfo(config, models, layer);
+        break;
+      case 'options':
+        layer = lodashFind(models.layers[layerGroupString], { id: layerId });
+        layersOptions(config, models, layer, layerGroupString);
+        break;
+      case 'hover':
+        timelineDataHightlight(layerId, value);
+        break;
+      default:
+        updateState(removeLayerState(isCompareMode));
+    }
+  };
+  var removeLayerState = function(isCompareActive) {
+    return isCompareActive ? 'layers' : 'layerObjects';
+  };
+  var toggleLayerVisibility = function(layerId, isVisible) {
+    var groupString = getActiveLayerGroupString(isCompareMode, isCompareA);
+    models.layers.setVisibility(layerId, isVisible, groupString);
+    if (groupString === 'active') {
+      updateState('layers');
+    } else {
+      updateState('layerObjects');
+    }
+  };
+
+  init();
+  return self;
+}

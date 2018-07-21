@@ -6,7 +6,7 @@ import lodashWithout from 'lodash/without';
 import lodashIndexOf from 'lodash/indexOf';
 import util from '../util/util';
 
-export function animationWidget (models, config, ui) {
+export function animationWidget(models, config, ui) {
   var zooms = ['yearly', 'monthly', 'daily', '10-Minute'];
   var self = {};
   var timeline = ui.timeline;
@@ -25,7 +25,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.init = function () {
+  self.init = function() {
     $animateButton = $('#animate-button');
 
     var props = {
@@ -54,53 +54,66 @@ export function animationWidget (models, config, ui) {
       $('#wv-animation-widet-case')[0]
     );
     $timelineFooter = $('#timeline-footer');
-    $animateButton.on('click', function () {
+    $animateButton.on('click', function() {
       googleAnalytics.event('Animation', 'Click', 'Animation Icon');
       self.toggleAnimationWidget();
     });
-    if (model.rangeState.state === 'on') { // show animation widget if active in permalink
+    if (model.rangeState.state === 'on') {
+      // show animation widget if active in permalink
       $timelineFooter.toggleClass('wv-anim-active');
     }
-    $('.wv-date-selector-widget input')
-      .on('keydown', function (e) {
-        // A bit of a hack
-        e.stopPropagation(); // needed to correct event bubbling between react and Document
-      });
+    $('.wv-date-selector-widget input').on('keydown', function(e) {
+      // A bit of a hack
+      e.stopPropagation(); // needed to correct event bubbling between react and Document
+    });
     model.events.trigger('change');
     model.events.on('change', self.update);
     models.date.events.on('timeline-change', self.update);
     if (models.data) {
       dataModel = models.data;
-      dataModel.events.on('activate', function () {
+      dataModel.events.on('activate', function() {
         self.toggleAnimationWidget();
-        self.onDataActivate();
+        self.disableButton('Data Download');
       });
-      dataModel.events.on('deactivate', function () {
-        self.onDataDeactivate();
+      dataModel.events.on('deactivate', function() {
+        self.enableButton();
       });
     } else {
       dataModel = {};
       dataModel.active = false;
     }
+    if (models.compare) {
+      let compareModel = models.compare;
+      if (compareModel.active) {
+        self.disableButton('Compare');
+      }
+      compareModel.events.on('toggle', () => {
+        if (compareModel.active) {
+          if (model.rangeState.state === 'on') self.toggleAnimationWidget();
+          self.disableButton('Compare');
+        } else {
+          self.enableButton();
+        }
+      });
+    }
 
     // hack for react bug https://github.com/facebook/react/issues/1920
-    $('.wv-date-selector-widget input')
-      .keydown(function (e) {
-        if (e.keyCode === 13 || e.keyCode === 9) {
-          e.preventDefault();
-        }
-      });
+    $('.wv-date-selector-widget input').keydown(function(e) {
+      if (e.keyCode === 13 || e.keyCode === 9) {
+        e.preventDefault();
+      }
+    });
     // Space bar event listener
-    $(window)
-      .keypress(function (e) {
-        if ((e.keyCode === 32 ||
-            e.charCode === 32) && // space click
-          !$('#layer-modal')
-            .dialog('isOpen')) { // layer selector is not open
-          e.preventDefault();
-          self.onSpaceBar();
-        }
-      });
+    $(window).keypress(function(e) {
+      if (
+        (e.keyCode === 32 || e.charCode === 32) && // space click
+        !$('#layer-modal').dialog('isOpen')
+      ) {
+        // layer selector is not open
+        e.preventDefault();
+        self.onSpaceBar();
+      }
+    });
   };
 
   /*
@@ -113,7 +126,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.onSpaceBar = function () {
+  self.onSpaceBar = function() {
     if (model.rangeState.state === 'on') {
       if (model.rangeState.playing) {
         self.onPressPause();
@@ -134,7 +147,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.update = function () {
+  self.update = function() {
     var state = model.rangeState;
     self.reactComponent.setState({
       startDate: new Date(state.startDate),
@@ -155,7 +168,7 @@ export function animationWidget (models, config, ui) {
    * @returns {string} timeline interval
    *
    */
-  self.getIncrements = function () {
+  self.getIncrements = function() {
     if (models.date.maxZoom > 3) {
       zooms = ['yearly', 'monthly', 'daily', '10-Minute'];
     } else {
@@ -178,7 +191,7 @@ export function animationWidget (models, config, ui) {
    * @returns {string} timeline interval
    *
    */
-  self.onZoomSelect = function (increment) {
+  self.onZoomSelect = function(increment) {
     var zoomLevel = lodashIndexOf(zooms, increment);
     return timeline.config.zoom(zoomLevel + 1);
   };
@@ -197,7 +210,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.dateUpdate = function (startDate, endDate) {
+  self.dateUpdate = function(startDate, endDate) {
     model.rangeState.startDate = util.toISOStringSeconds(startDate) || 0;
     model.rangeState.endDate = util.toISOStringSeconds(endDate);
     model.rangeState.playing = false;
@@ -215,20 +228,22 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.toggleAnimationWidget = function () {
+  self.toggleAnimationWidget = function() {
     // If timeline is hidden, pressing
     // the anim icon will open the
     // timeline and the anim widget
-    if (model.rangeState.state === null) { // widget hasn't been clicked before
+    if (model.rangeState.state === null) {
+      // widget hasn't been clicked before
       model.rangeState.state = 'off';
       self.makeDateGuess();
     }
     if ($timelineFooter.is(':hidden') && !dataModel.active) {
       ui.timeline.toggle(); // toggle
-      if (model.rangeState.state === 'on') { // activate anim if not already
+      if (model.rangeState.state === 'on') {
+        // activate anim if not already
         return;
       }
-      setTimeout(function () {
+      setTimeout(function() {
         model.events.trigger('change');
         model.events.trigger('toggle-widget');
       }, 500);
@@ -243,7 +258,7 @@ export function animationWidget (models, config, ui) {
     return $timelineFooter.toggleClass('wv-anim-active');
   };
 
-  self.makeDateGuess = function () {
+  self.makeDateGuess = function() {
     var day, intervalStep;
     var today = new Date();
     var currentDate = new Date(models.date.selected);
@@ -256,10 +271,14 @@ export function animationWidget (models, config, ui) {
     day = util.dateAdd(currentDate, interval, intervalStep);
     if (day > today) {
       model.rangeState.endDate = util.toISOStringSeconds(currentDate);
-      model.rangeState.startDate = util.toISOStringSeconds(util.dateAdd(currentDate, interval, -(intervalStep)));
+      model.rangeState.startDate = util.toISOStringSeconds(
+        util.dateAdd(currentDate, interval, -intervalStep)
+      );
     } else {
       model.rangeState.startDate = util.toISOStringSeconds(currentDate);
-      model.rangeState.endDate = util.toISOStringSeconds(util.dateAdd(currentDate, interval, intervalStep));
+      model.rangeState.endDate = util.toISOStringSeconds(
+        util.dateAdd(currentDate, interval, intervalStep)
+      );
     }
   };
 
@@ -272,7 +291,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.onPressPlay = function () {
+  self.onPressPlay = function() {
     model.rangeState.playing = true;
     model.events.trigger('play');
   };
@@ -290,7 +309,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.onRateChange = function (speed) {
+  self.onRateChange = function(speed) {
     model.rangeState.speed = speed;
     model.events.trigger('change');
   };
@@ -305,7 +324,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.onPressPause = function () {
+  self.onPressPause = function() {
     var state = model.rangeState;
     state.playing = false;
     model.events.trigger('change');
@@ -322,9 +341,14 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.onDataActivate = function () {
+  self.disableButton = function(featureThatIsDisabling) {
     $animateButton.addClass('wv-disabled-button');
-    $animateButton.prop('title', 'Animation feature is deactivated when data download feature is active');
+    $animateButton.prop(
+      'title',
+      'Animation feature is deactivated when ' +
+        featureThatIsDisabling +
+        ' feature is active'
+    );
   };
 
   /*
@@ -338,7 +362,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.onDataDeactivate = function () {
+  self.enableButton = function() {
     $animateButton.removeClass('wv-disabled-button');
     $animateButton.prop('title', 'Set up animation');
   };
@@ -355,7 +379,7 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.onPressLoop = function (loop) {
+  self.onPressLoop = function(loop) {
     var state = model.rangeState;
     state.loop = loop;
     model.events.trigger('change');
@@ -372,10 +396,10 @@ export function animationWidget (models, config, ui) {
    * @returns {void}
    *
    */
-  self.onPressGIF = function () {
+  self.onPressGIF = function() {
     model.events.trigger('gif-click');
   };
 
   self.init();
   return self;
-};
+}

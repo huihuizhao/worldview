@@ -3,7 +3,6 @@ const fs = require('fs');
 const browserify = require('browserify');
 const watchify = require('watchify');
 const minimist = require('minimist');
-const uglifyjs = require('uglify-js');
 
 const argv = minimist(process.argv.slice(2));
 const isProduction = process.env.NODE_ENV === 'production';
@@ -36,20 +35,25 @@ var bundler = browserify(entryPoint, {
 });
 
 if (isProduction) {
-  bundler = bundler.transform('envify', { // Replace env variables with strings - allows deadcode removal with uglifyify (below) and unglifyjs (see npm script "build:js")
+  bundler = bundler.transform('envify', {
+    // Replace env variables with strings - allows deadcode removal with uglifyify (below) and unglifyjs (see npm script "build:js")
     NODE_ENV: process.env.NODE_ENV,
     global: true
   });
 }
 
-bundler = bundler.transform('babelify', { // necessary regardless of dev or prod build
-  presets: ['env']
-}).transform('browserify-shim', {
-  global: true
-});
+bundler = bundler
+  .transform('babelify', {
+    // necessary regardless of dev or prod build
+    presets: ['env']
+  })
+  .transform('browserify-shim', {
+    global: true
+  });
 
 if (isProduction) {
-  bundler = bundler.transform('uglifyify', { // With sourcemaps turned on, it's ok to uglify in dev
+  bundler = bundler.transform('uglifyify', {
+    // With sourcemaps turned on, it's ok to uglify in dev
     global: true
   });
 }
@@ -57,42 +61,17 @@ if (isProduction) {
 function bundle() {
   const begin = Date.now();
   var stream = fs.createWriteStream(outputPath);
-  bundler.bundle().on('error', function(err) {
-    console.error(err);
-    this.emit('end');
-  }).pipe(stream);
+  bundler
+    .bundle()
+    .on('error', function(err) {
+      console.error(err);
+      this.emit('end');
+    })
+    .pipe(stream);
   stream.on('finish', function() {
-    // if production - read bundle file, uglify-js bundle, and rewrite file
-    if (isProduction) {
-      const uglifyOptions = {
-        toplevel: true,
-        compress: {
-          dead_code: true,
-          conditionals: true,
-          booleans: true,
-          unused: true,
-          if_return: true,
-          join_vars: true
-        },
-        mangle: true
-      };
-
-      fs.readFile(outputPath, 'utf8', function(err, data) {
-        if (err) {
-          console.log(err);
-        }
-        var code = uglifyjs.minify(data, uglifyOptions);
-        fs.writeFile(outputPath, code.code, function(err) {
-          if (err) {
-            console.log(err);
-          } else {
-            console.log(outputPath + ' written in ' + (Date.now() - begin) / 1000 + 's');
-          }
-        });
-      });
-    } else {
-      console.log(outputPath + ' written in ' + (Date.now() - begin) / 1000 + 's');
-    }
+    console.log(
+      outputPath + ' written in ' + (Date.now() - begin) / 1000 + 's'
+    );
   });
 }
 

@@ -39,8 +39,10 @@
 .nav-tabs {
   border-bottom: 3px solid #00457b;
 }
+.nav-tabs .nav-link {
+  padding: 0.3rem 0.55rem;
+}
 #productsHolder .nav-tabs .disabled {
-  cursor: not-allowed;
   color: white;
   opacity: 0.5;
 }
@@ -82,7 +84,9 @@ footer .compare-toggle-button {
   position: absolute;
   right: 5px;
 }
-
+/* .layer-group-case {
+  margin-right: 10px;
+} */
 .wv-ab-mode-selection-case {
   margin: 5px;
 }

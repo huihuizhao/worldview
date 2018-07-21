@@ -2,7 +2,7 @@ var map;
 var slider;
 var value = '50';
 export class Opacity {
-  constructor(olMap) {
+  constructor(olMap, isAactive, events) {
     map = olMap;
     this.create();
   }
