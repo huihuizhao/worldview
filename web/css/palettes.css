@@ -158,17 +158,17 @@
   border-bottom: 4px solid #dedede;
 }
 
-.wv-palettes-panel.wv-running .wv-palettes-max,
-.wv-palettes-panel.wv-running .wv-palettes-min {
+.wv-palettes-legend.wv-running .wv-palettes-max,
+.wv-palettes-legend.wv-running .wv-palettes-min {
   display: none;
 }
 
-.wv-palettes-panel.wv-running .wv-running-category-label {
+.wv-palettes-legend.wv-running .wv-running-category-label {
   visibility: visible;
 }
 
-.wv-palettes-panel.wv-running .wv-running-bar,
-.wv-palettes-panel.wv-running .wv-running-label {
+.wv-palettes-legend.wv-running .wv-running-bar,
+.wv-palettes-legend.wv-running .wv-running-label {
   visibility: visible;
 }
 

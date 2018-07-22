@@ -5,7 +5,6 @@ import { getActiveLayerGroupString } from '../compare/util';
 
 export function timelineData(models, config, ui) {
   var tl = ui.timeline;
-
   var self = {};
 
   self.start = function() {

@@ -42,7 +42,10 @@ export function sidebarUi(models, config, ui) {
 
     // Set Event Listeners
     models.data.events
-      .on('activate', () => onTabClick('download'))
+      .on('activate', () => {
+        onTabClick('download');
+        debounceUpdateData();
+      })
       .on('productSelect', onProductSelect)
       .on('layerUpdate', debounceUpdateData)
       .on('granuleSelect', debounceUpdateData)
@@ -244,10 +247,6 @@ export function sidebarUi(models, config, ui) {
         return self.reactComponent.setState({ activeTab: activeTab });
       case 'layers':
         let layerString = getActiveLayerGroupString(isCompareMode, isCompareA);
-        console.log(layerString);
-        console.log(
-          models.layers.get({ group: 'all' }, models.layers[layerString])
-        );
         return self.reactComponent.setState({
           layers: models.layers.get(
             { group: 'all' },

@@ -28,6 +28,7 @@ export function timelineInput(models, config, ui) {
   var $decrementBtn = $('#left-arrow-group');
 
   var init = function() {
+    models.layers.events.on('subdaily-updated', updateMaxZoom);
     $incrementBtn
       .mousedown(function(e) {
         e.preventDefault();
@@ -172,7 +173,8 @@ export function timelineInput(models, config, ui) {
       maxDate: max,
       maxZoom: model.maxZoom,
       onDateChange: onDateSelect,
-      date: date
+      date: date,
+      fontSize: null
     };
   };
   var onDateSelect = function(date) {
@@ -281,6 +283,18 @@ export function timelineInput(models, config, ui) {
     }
 
     tl.pick.update();
+  };
+  var updateMaxZoom = function() {
+    if (model.maxZoom >= 4) {
+      document.getElementById('timeline-header').classList.add('subdaily');
+    } else {
+      if (ui.timeline && ui.timeline.config.currentZoom > 3) {
+        document.getElementById('zoom-days').click();
+      }
+      document.getElementById('timeline-header').classList.remove('subdaily');
+    }
+    self.reactComponent.setState({ maxZoom: model.maxZoom });
+    model.events.trigger('update-timewheel');
   };
 
   init();

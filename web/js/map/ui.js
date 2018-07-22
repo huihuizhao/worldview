@@ -216,16 +216,16 @@ export function mapui(models, config) {
    *
    * @returns {void}
    */
-  var clearLayers = function(map, isOnlyFirstGroup) {
+  var clearLayers = function(map) {
     var activeLayers = map
       .getLayers()
       .getArray()
       .slice(0);
-    if (isOnlyFirstGroup) activeLayers = activeLayers[0];
     lodashEach(activeLayers, function(mapLayer) {
       map.removeLayer(mapLayer);
     });
-    removeGraticule();
+    removeGraticule('active');
+    removeGraticule('activeB');
     cache.clear();
   };
   /*
@@ -261,14 +261,16 @@ export function mapui(models, config) {
       );
       lodashEach(defs, function(def) {
         if (isGraticule(def)) {
-          addGraticule();
+          addGraticule(def.opacity, models.layers.activeLayers);
         } else {
           self.selected.addLayer(createLayer(def));
         }
       });
     } else {
       let stateArray = [['active', 'selected'], ['activeB', 'selectedB']];
-      if (!compareModel.isCompareA && (compareModel.mode === 'spy')) stateArray.reverse();
+      if (!compareModel.isCompareA && compareModel.mode === 'spy') {
+        stateArray.reverse();
+      }
       lodashEach(stateArray, arr => {
         self.selected.addLayer(getCompareLayerGroup(arr));
       });
@@ -280,6 +282,13 @@ export function mapui(models, config) {
     return new OlLayerGroup({
       layers: models.layers
         .get({ reverse: true }, models.layers[arr[0]])
+        .filter(def => {
+          if (isGraticule(def)) {
+            addGraticule(def.opacity, arr[0]);
+            return false;
+          }
+          return true;
+        })
         .map(def => {
           return createLayer(def, {
             date: models.date[arr[1]],
@@ -303,16 +312,35 @@ export function mapui(models, config) {
     var layers = self.selected.getLayers();
     var compareModel = models.compare;
     var layersModel = models.layers;
-    let layerGroupStr = getActiveLayerGroupString(
+    var layerGroupStr = getActiveLayerGroupString(
       compareModel.active,
       compareModel.isCompareA
     );
+    var updateGraticules = function(defs, groupName) {
+      lodashEach(defs, function(def) {
+        if (isGraticule(def)) {
+          renderable = layersModel.isRenderable(
+            def.id,
+            layersModel[layerGroupStr]
+          );
+          if (renderable) {
+            addGraticule(def.opacity, groupName);
+          } else {
+            removeGraticule(groupName);
+          }
+        }
+      });
+    };
     layers.forEach(function(layer) {
       var group = layer.get('group');
       if (layer.wv) {
         renderable = layersModel.isRenderable(layer.wv.id);
         layer.setVisible(renderable);
+        let defs = layersModel.get({}, layersModel[layerGroupStr]);
+        updateGraticules(defs);
       } else if (group) {
+        let defs;
+
         lodashEach(layer.getLayers().getArray(), subLayer => {
           if (subLayer.wv) {
             renderable = layersModel.isRenderable(
@@ -324,20 +352,8 @@ export function mapui(models, config) {
           }
         });
         layer.setVisible(true);
-      }
-    });
-    var defs = layersModel.get({}, layersModel[layerGroupStr]);
-    lodashEach(defs, function(def) {
-      if (isGraticule(def)) {
-        renderable = layersModel.isRenderable(
-          def.id,
-          layersModel[layerGroupStr]
-        );
-        if (renderable) {
-          addGraticule();
-        } else {
-          removeGraticule();
-        }
+        defs = layersModel.get({}, layersModel[group]);
+        updateGraticules(defs, group);
       }
     });
   };
@@ -354,9 +370,15 @@ export function mapui(models, config) {
    * @returns {void}
    */
   var updateOpacity = function(def, value, activeLayersString) {
-    var layer = findLayer(def, activeLayersString);
-    layer.setOpacity(value);
-    updateLayerVisibilities();
+    if (isGraticule(def)) {
+      let strokeStyle = self['graticule-' + activeLayersString + '-style'];
+      strokeStyle.setColor('rgba(255, 255, 255,' + value + ')');
+      self.selected.render();
+    } else {
+      let layer = findLayer(def, activeLayersString);
+      layer.setOpacity(value);
+      updateLayerVisibilities();
+    }
   };
   /*
    *Initiates the adding of a layer or Graticule
@@ -379,7 +401,7 @@ export function mapui(models, config) {
     var layers = self.selected.getLayers().getArray();
     var firstLayer = layers[0]; // needs to be upated, won't always be first layer
     if (isGraticule(def)) {
-      addGraticule();
+      addGraticule(def.opacity, models.layers.activeLayers);
     } else {
       def.availableDates = util.datesinDateRanges(def, date, true);
       if (firstLayer && firstLayer.get('group')) {
@@ -406,9 +428,9 @@ export function mapui(models, config) {
    */
   var removeLayer = function(def) {
     if (isGraticule(def)) {
-      removeGraticule();
+      removeGraticule(models.layers.activeLayers);
     } else {
-      var layer = findLayer(def);
+      var layer = findLayer(def, models.layers.activeLayers);
       self.selected.removeLayer(layer);
     }
     updateLayerVisibilities();
@@ -508,13 +530,27 @@ export function mapui(models, config) {
    *
    * @returns {object} Layer object
    */
-  var findLayer = function(def) {
+  var findLayer = function(def, layerGroupStr) {
     var layers = self.selected.getLayers().getArray();
     var layer = lodashFind(layers, {
       wv: {
         id: def.id
       }
     });
+    if (!layer) {
+      let subGroup, olGroupLayer;
+      lodashEach(layers, layerGroup => {
+        if (layerGroup.get('group') === layerGroupStr) {
+          olGroupLayer = layerGroup;
+        }
+      });
+      subGroup = olGroupLayer.getLayers().getArray();
+      layer = lodashFind(subGroup, {
+        wv: {
+          id: def.id
+        }
+      });
+    }
     return layer;
   };
 
@@ -571,19 +607,26 @@ export function mapui(models, config) {
    *
    * @returns {void}
    */
-  var addGraticule = function() {
-    if (self.selected.graticule) {
+  var addGraticule = function(opacity, groupStr) {
+    groupStr = groupStr || 'active';
+    opacity = opacity || 0.5;
+    var graticule = self.selected['graticule-' + groupStr];
+    if (graticule) {
       return;
     }
-
-    self.selected.graticule = new OlGraticule({
-      map: self.selected,
-      strokeStyle: new OlStyleStroke({
-        color: 'rgba(255, 255, 255, 0.5)',
-        width: 2,
-        lineDash: [0.5, 4]
-      })
+    console.log('rgba(255, 255, 255,' + opacity + ')');
+    var strokeStyle = new OlStyleStroke({
+      color: 'rgba(255, 255, 255,' + opacity + ')',
+      width: 2,
+      lineDash: [0.5, 4]
     });
+
+    self.selected['graticule-' + groupStr] = new OlGraticule({
+      map: self.selected,
+      group: groupStr,
+      strokeStyle: strokeStyle
+    });
+    self['graticule-' + groupStr + '-style'] = strokeStyle;
   };
 
   /*
@@ -596,12 +639,13 @@ export function mapui(models, config) {
    *
    * @returns {void}
    */
-  var removeGraticule = function() {
-    if (self.selected.graticule) {
-      self.selected.graticule.setMap(null);
+  var removeGraticule = function(groupStr) {
+    groupStr = groupStr || 'active';
+    var graticule = self.selected['graticule-' + groupStr];
+    if (graticule) {
+      graticule.setMap(null);
     }
-
-    self.selected.graticule = null;
+    graticule = null;
   };
 
   var triggerExtent = lodashThrottle(

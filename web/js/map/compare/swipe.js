@@ -1,4 +1,5 @@
 import lodashEach from 'lodash/each';
+import lodashDebounce from 'lodash/debounce';
 
 var swipeOffset = null;
 var line = null;
@@ -57,6 +58,7 @@ var addLineOverlay = function(map) {
 
   [lineCaseEl, draggerEl].forEach(el => {
     el.addEventListener('mousedown', evt => {
+      var windowWidth = window.innerWidth;
       events.trigger('mousedown');
       evt.preventDefault();
       evt.stopPropagation();
@@ -64,7 +66,15 @@ var addLineOverlay = function(map) {
         evt.preventDefault();
         evt.stopPropagation();
         swipeOffset += evt.movementX;
+        // Keep swiper on the screen
+        swipeOffset =
+          evt.clientX > windowWidth
+            ? windowWidth - 3
+            : evt.clientX < 0
+              ? 2
+              : swipeOffset;
         lineCaseEl.style.transform = 'translateX( ' + swipeOffset + 'px)';
+
         map.render();
       }
       function end(evt) {

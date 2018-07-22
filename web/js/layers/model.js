@@ -59,8 +59,7 @@ export function layersModel(models, config) {
     return baselayers.concat(overlays);
   };
 
-<<<<<<< HEAD
-  self.getTitles = function (layerId, proj) {
+  self.getTitles = function(layerId, proj) {
     try {
       proj = proj || models.proj.selected.id;
       var title, subtitle, tags;
@@ -81,16 +80,6 @@ export function layersModel(models, config) {
       };
     } catch (err) {
       throw new Error(`error in layer ${layerId}: ${err}`);
-=======
-  self.getTitles = function(layerId, proj) {
-    proj = proj || models.proj.selected.id;
-    var title, subtitle, tags;
-    if (config.layers[layerId].projections[proj]) {
-      var forProj = config.layers[layerId].projections[proj];
-      title = forProj.title;
-      subtitle = forProj.subtitle;
-      tags = forProj.tags;
->>>>>>> update Date and layer models #986
     }
   };
 
