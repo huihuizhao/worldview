@@ -1,5 +1,4 @@
 import lodashEach from 'lodash/each';
-import lodashDebounce from 'lodash/debounce';
 
 var swipeOffset = null;
 var line = null;

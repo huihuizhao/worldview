@@ -373,6 +373,7 @@ export function mapui(models, config) {
     if (isGraticule(def)) {
       let strokeStyle = self['graticule-' + activeLayersString + '-style'];
       strokeStyle.setColor('rgba(255, 255, 255,' + value + ')');
+      console.log(strokeStyle.get('opacity'));
       self.selected.render();
     } else {
       let layer = findLayer(def, activeLayersString);
@@ -614,11 +615,11 @@ export function mapui(models, config) {
     if (graticule) {
       return;
     }
-    console.log('rgba(255, 255, 255,' + opacity + ')');
     var strokeStyle = new OlStyleStroke({
       color: 'rgba(255, 255, 255,' + opacity + ')',
       width: 2,
-      lineDash: [0.5, 4]
+      lineDash: [0.5, 4],
+      opacity: opacity
     });
 
     self.selected['graticule-' + groupStr] = new OlGraticule({
