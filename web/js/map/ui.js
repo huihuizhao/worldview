@@ -373,7 +373,6 @@ export function mapui(models, config) {
     if (isGraticule(def)) {
       let strokeStyle = self['graticule-' + activeLayersString + '-style'];
       strokeStyle.setColor('rgba(255, 255, 255,' + value + ')');
-      console.log(strokeStyle.get('opacity'));
       self.selected.render();
     } else {
       let layer = findLayer(def, activeLayersString);
@@ -646,7 +645,7 @@ export function mapui(models, config) {
     if (graticule) {
       graticule.setMap(null);
     }
-    graticule = null;
+    self.selected['graticule-' + groupStr] = null;
   };
 
   var triggerExtent = lodashThrottle(
