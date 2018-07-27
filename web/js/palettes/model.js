@@ -51,11 +51,7 @@ export function palettesModel(models, config) {
     if (!palettes.supported) {
       return false;
     }
-    let palette = config.layers[layerId].palette;
-    if (!palette || palette.immutable) {
-      return false;
-    }
-    return palette;
+    return config.layers[layerId].palette;
   };
 
   self.setCustom = function(layerId, paletteId, index, groupStr) {
@@ -171,7 +167,7 @@ export function palettesModel(models, config) {
     var legends = [];
     var count = self.getCount(layerId);
     for (var i = 0; i < count; i++) {
-      legends.push(self.getLegend(layerId, i));
+      legends.push(self.getLegend(layerId, i, groupStr));
     }
     return legends;
   };

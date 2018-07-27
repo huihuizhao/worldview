@@ -6,6 +6,7 @@ var bottomLayers = [];
 var topLayers = [];
 var map;
 var events;
+var mapCase;
 export class Swipe {
   constructor(olMap, isAactive, compareEvents) {
     map = olMap;
@@ -26,7 +27,7 @@ export class Swipe {
     applyEventsToBaseLayers(mapLayers[0], map, applyReverseLayerListeners);
   }
   destroy() {
-    line.remove();
+    mapCase.removeChild(line);
     removeListenersFromLayers(topLayers);
     removeListenersFromBottomLayers(bottomLayers);
   }
@@ -36,9 +37,9 @@ var addLineOverlay = function(map) {
   var lineCaseEl = document.createElement('div');
   var draggerEl = document.createElement('div');
   var iconEl = document.createElement('i');
-  var mapCase = document.getElementById('wv-map');
   var firstLabel = document.createElement('span');
   var secondLabel = document.createElement('span');
+  mapCase = document.getElementById('wv-map');
   firstLabel.className = 'ab-swipe-span left-label';
   secondLabel.className = 'ab-swipe-span right-label';
   firstLabel.appendChild(document.createTextNode('A'));
@@ -57,21 +58,13 @@ var addLineOverlay = function(map) {
 
   [lineCaseEl, draggerEl].forEach(el => {
     el.addEventListener('mousedown', evt => {
-      var windowWidth = window.innerWidth;
       events.trigger('mousedown');
       evt.preventDefault();
       evt.stopPropagation();
       function move(evt) {
         evt.preventDefault();
         evt.stopPropagation();
-        swipeOffset += evt.movementX;
-        // Keep swiper on the screen
-        swipeOffset =
-          evt.clientX > windowWidth
-            ? windowWidth - 3
-            : evt.clientX < 0
-              ? 2
-              : swipeOffset;
+        swipeOffset = evt.clientX;
         lineCaseEl.style.transform = 'translateX( ' + swipeOffset + 'px)';
 
         map.render();

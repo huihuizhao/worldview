@@ -21,7 +21,9 @@ export function layersModel(models, config) {
   var init = function() {
     self.reset();
   };
-
+  self.updateLayerGroup = function(newGroupStr) {
+    self.activeLayers = newGroupStr;
+  };
   self.reset = function() {
     self.clear();
     if (config.defaults && config.defaults.startingLayers) {
@@ -140,6 +142,11 @@ export function layersModel(models, config) {
     var max = 0;
     var range = false;
     lodashEach(layers, function(def) {
+      if (!def) {
+        console.log(layers);
+        console.log(spec, activeLayers);
+      }
+
       if (def.startDate) {
         range = true;
         var start = util.parseDateUTC(def.startDate).getTime();

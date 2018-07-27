@@ -6,7 +6,7 @@ import util from '../util/util';
 import { Sidebar } from 'worldview-components';
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { getCompareObjects, getActiveLayerGroupString } from '../compare/util';
+import { getCompareObjects } from '../compare/util';
 import { getCheckerboard } from '../palettes/util';
 import { layersOptions } from '../layers/options';
 import { layersInfo } from '../layers/info';
@@ -18,11 +18,9 @@ import wvui from '../ui/ui';
 export function sidebarUi(models, config, ui) {
   var isCollapsed = false;
   var activeTab = 'layers';
-  var isCompareMode = false;
   var self = {};
   var model = models.layers;
   var compareObj = {};
-  var isCompareA = true;
   var compareModeType = 'swipe';
 
   self.events = util.events();
@@ -43,7 +41,7 @@ export function sidebarUi(models, config, ui) {
     // Set Event Listeners
     models.data.events
       .on('activate', () => {
-        onTabClick('download');
+        self.selectTab('download');
         debounceUpdateData();
       })
       .on('productSelect', onProductSelect)
@@ -61,7 +59,7 @@ export function sidebarUi(models, config, ui) {
       .on('range', debounceLayerUpdates)
       .on('update', debounceLayerUpdates);
     models.naturalEvents.events
-      .on('activate', () => onTabClick('events'))
+      .on('activate', () => self.selectTab('events'))
       .on('list-change', debounceUpdateEventsList)
       .on('selected-event', selected => {
         self.reactComponent.setState({ selectedEvent: selected });
@@ -73,6 +71,15 @@ export function sidebarUi(models, config, ui) {
           deselectEvent: ui.naturalEvents.deselectEvent,
           filterEventList: ui.naturalEvents.filterEventList
         });
+      });
+    models.compare.events
+      .on('toggle', () => {
+        updateState('isCompareMode');
+        updateState('layerObjects');
+        updateState('layers');
+      })
+      .on('toggle-state', () => {
+        updateState('isCompareA');
       });
     models.date.events.on('select', debounceLayerUpdates);
     models.proj.events.on('select', debounceLayerUpdates);
@@ -98,18 +105,17 @@ export function sidebarUi(models, config, ui) {
     if (config.features.compare) {
       compareModel = models.compare;
       if (models.compare.active) {
-        isCompareA = compareModel.isCompareA;
-        isCompareMode = compareModel.active;
         compareObj = getCompareObjects(models);
         compareModeType = compareModel.mode;
       }
     }
     return {
       activeTab: activeTab,
-      isCompareMode: isCompareMode,
+      isCompareMode:
+        compareModel && compareModel.active ? compareModel.active : false,
       isCollapsed: isCollapsed,
       layers: model.get({ group: 'all' }),
-      onTabClick: onTabClick,
+      onTabClick: self.selectTab,
       toggleSidebar: toggleSidebar,
       toggleLayerVisibility: toggleLayerVisibility,
       tabTypes: getActiveTabs(),
@@ -119,7 +125,7 @@ export function sidebarUi(models, config, ui) {
       getAvailability: getAvailability,
       toggleComparisonObject: toggleComparisonObject,
       toggleMode: toggleComparisonMode,
-      isCompareA: isCompareA,
+      isCompareA: compareModel && compareModel.isCompareA,
       updateLayer: updateLayer,
       addLayers: onAddLayerCLick,
       comparisonType: compareModeType,
@@ -193,9 +199,7 @@ export function sidebarUi(models, config, ui) {
     self.reactComponent.setState({ windowHeight: window.innerHeight });
   };
   var toggleComparisonObject = function() {
-    isCompareA = !isCompareA;
     models.compare.toggleState();
-    updateState('isCompareA');
   };
   var onAddLayerCLick = function() {
     wvui.closeDialog();
@@ -204,7 +208,6 @@ export function sidebarUi(models, config, ui) {
 
   // Need to rethink what is going on here
   var toggleComparisonMode = function() {
-    isCompareMode = !isCompareMode;
     if (!models.layers.activeB || !models.date.selectedB) {
       if (!models.date.selectedB) {
         models.date.initCompare();
@@ -212,13 +215,8 @@ export function sidebarUi(models, config, ui) {
       if (!models.layers.activeB) {
         models.layers.initCompare();
       }
-      updateState('layerObjects');
     }
-
     models.compare.toggle();
-    updateState('isCompareMode');
-    updateState('layerObjects');
-    updateState('layers');
   };
   var palettePromise = function(layerId, paletteId) {
     return new Promise((resolve, reject) => {
@@ -246,17 +244,20 @@ export function sidebarUi(models, config, ui) {
       case 'activeTab':
         return self.reactComponent.setState({ activeTab: activeTab });
       case 'layers':
-        let layerString = getActiveLayerGroupString(isCompareMode, isCompareA);
         return self.reactComponent.setState({
           layers: models.layers.get(
             { group: 'all' },
-            models.layers[layerString]
+            models.layers[models.layers.activeLayers]
           )
         });
       case 'isCompareMode':
-        return self.reactComponent.setState({ isCompareMode: isCompareMode });
+        return self.reactComponent.setState({
+          isCompareMode: models.compare ? models.compare.active : false
+        });
       case 'isCompareA': {
-        return self.reactComponent.setState({ isCompareA: isCompareA });
+        return self.reactComponent.setState({
+          isCompareA: models.compare ? models.compare.isCompareA : true
+        });
       }
       case 'zotsObject':
         return self.reactComponent.setState({ zotsObject: value });
@@ -268,11 +269,16 @@ export function sidebarUi(models, config, ui) {
         });
     }
   };
+  self.expandNow = function() {
+    isCollapsed = false;
+    updateState('isCollapsed');
+  };
   var toggleSidebar = function() {
     isCollapsed = !isCollapsed;
     updateState('isCollapsed');
   };
-  var onTabClick = function(tab) {
+
+  self.selectTab = function(tab) {
     if (activeTab === tab) return;
     activeTab = tab;
     self.events.trigger('selectTab', tab);
@@ -280,7 +286,8 @@ export function sidebarUi(models, config, ui) {
   };
   var updateLayer = function(layerId, typeOfUpdate, value) {
     var layer;
-    var layerGroupString = getActiveLayerGroupString(isCompareMode, isCompareA);
+    var layerGroupString = models.layers.activeLayers;
+    var isCompareMode = models.compare && models.compare.active;
     switch (typeOfUpdate) {
       case 'remove':
         models.layers.remove(layerId, layerGroupString);
@@ -311,9 +318,9 @@ export function sidebarUi(models, config, ui) {
     return isCompareActive ? 'layers' : 'layerObjects';
   };
   var toggleLayerVisibility = function(layerId, isVisible) {
-    var groupString = getActiveLayerGroupString(isCompareMode, isCompareA);
-    models.layers.setVisibility(layerId, isVisible, groupString);
-    if (groupString === 'active') {
+    var layerGroupString = models.layers.activeLayers;
+    models.layers.setVisibility(layerId, isVisible, layerGroupString);
+    if (layerGroupString === 'active') {
       updateState('layers');
     } else {
       updateState('layerObjects');

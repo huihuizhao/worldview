@@ -33,23 +33,17 @@ export function dateModel(config, spec) {
       self.select(util.dateAdd(self.selected, 'day', -5), 'selectedB');
     }
   };
-  // self.switchLayers = function() {
-  //   self.activeDate = self.activeDate === 'selected' ? 'selectedB' : 'selected';
-  //   var selected = lodashCloneDeep(self.selected);
-  //   var selectedB = lodashCloneDeep(self.selectedB);
-  //   self.selected = selectedB;
-  //   self.selectedB = selected;
-
-  //   self.select(self[self.activeDate], self.activeDate);
-  // };
+  self.setActiveDate = function(dateString) {
+    self.activeDate = dateString;
+    self.events.trigger('state-update');
+  };
   self.string = function() {
     return util.toISOStringDate(self.selected);
   };
 
   self.select = function(date, selectionStr) {
-    selectionStr = selectionStr || 'selected';
+    selectionStr = selectionStr || self.activeDate;
     date = self.clamp(date);
-
     var updated = false;
     if (
       !self[selectionStr] ||
@@ -65,7 +59,7 @@ export function dateModel(config, spec) {
   };
 
   self.add = function(interval, amount, selectionStr) {
-    selectionStr = selectionStr || 'selected';
+    selectionStr = selectionStr || self.activeDate;
     self.select(
       util.dateAdd(self[selectionStr], interval, amount),
       selectionStr
@@ -148,8 +142,11 @@ export function dateModel(config, spec) {
   };
 
   self.load = function(state) {
+    if (state.ca === 'false') {
+      self.setActiveDate('selectedB');
+    }
     if (state.t) {
-      self.select(state.t);
+      self.select(state.t, 'selected');
     }
     if (state.z) {
       self.selectedZoom = Number(state.z);

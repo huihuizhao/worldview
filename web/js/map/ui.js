@@ -30,7 +30,6 @@ import { mapLayerBuilder } from './layerbuilder';
 import { MapRunningData } from './runningdata';
 import { mapPrecacheTile } from './precachetile';
 import { mapUtilZoomAction } from './util';
-import { getActiveLayerGroupString } from '../compare/util';
 import { mapCompare } from './compare/compare';
 import Cache from 'cachai';
 
@@ -91,7 +90,9 @@ export function mapui(models, config) {
       .on('visibility', updateLayerVisibilities)
       .on('opacity', updateOpacity)
       .on('update', updateLayerOrder);
-    models.compare.events.on('change', reloadLayers);
+    models.compare.events.on('toggle', reloadLayers);
+    models.compare.events.on('toggle-state', reloadLayers);
+    models.compare.events.on('mode', reloadLayers);
     models.date.events.on('select', updateDate);
     models.palettes.events
       .on('set-custom', updateLookup)
@@ -242,13 +243,10 @@ export function mapui(models, config) {
   var reloadLayers = function(map) {
     map = map || self.selected;
     var compareModel = models.compare;
-    var layerGroupStr = getActiveLayerGroupString(
-      compareModel.active,
-      compareModel.isCompareA
-    );
+    var layerGroupStr = models.layers.activeLayers;
     var activeLayers = models.layers[layerGroupStr];
-
     clearLayers(map);
+
     if (!models.compare.active) {
       if (compare.active) {
         compare.destroy();
@@ -261,8 +259,9 @@ export function mapui(models, config) {
       );
       lodashEach(defs, function(def) {
         if (isGraticule(def)) {
-          addGraticule(def.opacity, models.layers.activeLayers);
+          addGraticule(def.opacity, layerGroupStr);
         } else {
+          console.log(def);
           self.selected.addLayer(createLayer(def));
         }
       });
@@ -310,12 +309,9 @@ export function mapui(models, config) {
   var updateLayerVisibilities = function() {
     var renderable;
     var layers = self.selected.getLayers();
-    var compareModel = models.compare;
+    console.log(layers);
     var layersModel = models.layers;
-    var layerGroupStr = getActiveLayerGroupString(
-      compareModel.active,
-      compareModel.isCompareA
-    );
+    var layerGroupStr = models.layers.activeLayers;
     var updateGraticules = function(defs, groupName) {
       lodashEach(defs, function(def) {
         if (isGraticule(def)) {
@@ -459,14 +455,9 @@ export function mapui(models, config) {
    * @returns {void}
    */
   var updateDate = function() {
-    var layerGroupString = 'active';
-    if (models.compare && models.compare.active) {
-      layerGroupString = getActiveLayerGroupString(
-        true,
-        models.compare.isCompareA
-      );
-    }
-    var layers = models.layers.get({}, models.layers[layerGroupString]);
+    var layerModel = models.layers;
+    var layers = layerModel.get({}, layerModel[layerModel.activeLayers]);
+
     lodashEach(layers, function(def) {
       if (!['subdaily', 'daily', 'monthly', 'yearly'].includes(def.period)) {
         return;
@@ -565,7 +556,7 @@ export function mapui(models, config) {
    *
    * @returns {number} Index of layer in OpenLayers layer array
    */
-  var findLayerIndex = function(def, lengthOfComparisonGroups) {
+  var findLayerIndex = function(def) {
     var layers = self.selected.getLayers().getArray();
 
     var layer = lodashFindIndex(layers, {

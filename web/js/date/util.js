@@ -10,4 +10,3 @@ export function timelineDataHightlight(layerId, isActivate) {
     ).classed('data-bar-hovered', false);
   }
 }
-// export function timelineDataRemoveHightlight(layerId) {

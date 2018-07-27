@@ -36,7 +36,7 @@ export function timelineConfig(models, config, ui) {
 
     // Needs reworked. Repeated from layers/active/toggleSubdaily
     var activeLayers = models.layers.active;
-    var subdailyFound = false;
+    var subdailyFound = true;
     if (config.parameters.showSubdaily) {
       subdailyFound = true;
     } else {

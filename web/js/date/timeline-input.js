@@ -139,13 +139,10 @@ export function timelineInput(models, config, ui) {
     });
 
     if (config.features.compare) {
-      models.compare.events.on('toggle-state', () => {
-        var dateModel = models.date;
-        var activeDate =
-          model.activeDate === 'selected' ? 'selectedB' : 'selected';
-        model.activeDate = activeDate;
+      let dateModel = models.date;
+      dateModel.events.on('state-update', () => {
         self.reactComponent.setState({
-          date: dateModel[activeDate]
+          date: dateModel[dateModel.activeDate]
         });
       });
     }
@@ -178,15 +175,7 @@ export function timelineInput(models, config, ui) {
     };
   };
   var onDateSelect = function(date) {
-    var dateSelection = '';
-    if (models.compare.active) {
-      let compareModel = models.compare;
-      dateSelection = getActiveDateString(
-        compareModel.active,
-        compareModel.isCompareA
-      );
-    }
-    models.date.select(date, dateSelection);
+    models.date.select(date);
   };
   /**
    * Add timeout to date change when buttons are being held so that
@@ -201,18 +190,10 @@ export function timelineInput(models, config, ui) {
    */
   var animateByIncrement = function(delta, increment) {
     self.delta = Math.abs(delta);
-    var dateSelection = '';
-    if (models.compare.active) {
-      let compareModel = models.compare;
-      dateSelection = getActiveDateString(
-        compareModel.active,
-        compareModel.isCompareA
-      );
-    }
     function animate() {
       var nextTime = getNextTimeSelection(delta, increment);
       if (tl.data.start() <= nextTime <= util.now()) {
-        models.date.add(increment, delta, dateSelection);
+        models.date.add(increment, delta);
       }
       animator = setTimeout(animate, self.delay);
     }

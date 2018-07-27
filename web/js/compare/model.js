@@ -14,11 +14,14 @@ export function compareModel(models, config) {
   };
   self.toggleState = function() {
     self.isCompareA = !self.isCompareA;
+    models.layers.updateLayerGroup(self.isCompareA ? 'active' : 'activeB');
+    models.date.setActiveDate(self.isCompareA ? 'selected' : 'selectedB');
     self.events.trigger('toggle-state');
     self.events.trigger('change');
   };
   self.setMode = function(mode) {
     self.mode = mode;
+    self.events.trigger('mode');
     self.events.trigger('change');
   };
   self.save = function(state) {
